@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ULTRA ZOOM PRO | كاميرا التقريب والتوضيح الفائق</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --cyan: #00f2fe;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --dark: #06090e;
+      --panel: rgba(10, 15, 24, 0.9);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Cairo', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background: #000;
+      color: #fff;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* SVG Filter مخفي لشحذ الحواف الحية (Real-time Sharpening) */
+    .svg-filters {
+      position: absolute;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+    }
+
+    /* شاشة الرصد والكاميرا */
+    .viewport {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      overflow: hidden;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform-origin: center center;
+      transition: transform 0.08s ease-out;
+      will-change: transform, filter;
+    }
+
+    /* عدسة التصويب التلسكوبية (Crosshair HUD) */
+    .hud-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .reticle {
+      width: 180px;
+      height: 180px;
+      border: 1px dashed rgba(0, 242, 254, 0.45);
+      border-radius: 50%;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .reticle::before, .reticle::after {
+      content: '';
+      position: absolute;
+      background: rgba(0, 242, 254, 0.6);
+    }
+    .reticle::before { width: 24px; height: 1.5px; }
+    .reticle::after { width: 1.5px; height: 24px; }
+
+    /* شريط المعلومات العلوي (HUD Info) */
+    .top-hud {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      left: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 20;
+    }
+
+    .hud-badge {
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(0, 242, 254, 0.35);
+      padding: 5px 12px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--cyan);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .zoom-readout {
+      font-size: 1.1rem;
+      font-weight: 900;
+      color: var(--amber);
+      background: rgba(0, 0, 0, 0.75);
+      border: 1.5px solid var(--amber);
+      padding: 4px 14px;
+      border-radius: 12px;
+      letter-spacing: 1px;
+    }
+
+    /* أزرار التقريب السريع (1x - 20x) */
+    .quick-zoom-bar {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 30px;
+      padding: 4px 6px;
+      display: flex;
+      gap: 6px;
+      z-index: 20;
+    }
+
+    .qz-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .qz-btn.active {
+      background: var(--cyan);
+      color: #000;
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.6);
+    }
+
+    /* لوحة التحكم والمعالجة السفلية */
+    .control-deck {
+      background: var(--panel);
+      border-top: 1px solid rgba(0, 242, 254, 0.25);
+      padding: 12px 16px 20px;
+      z-index: 30;
+    }
+
+    /* سلايدر الزوم الناعم */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .slider-row span {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      width: 45px;
+      font-weight: 700;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      accent-color: var(--cyan);
+      height: 5px;
+      cursor: pointer;
+    }
+
+    /* أزرار أوضاع التوضيح الذكي */
+    .modes-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .mode-btn {
+      background: #141c2b;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #cbd5e1;
+      padding: 7px 4px;
+      border-radius: 10px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+
+    .mode-btn i { font-size: 0.95rem; color: var(--cyan); }
+
+    .mode-btn.active {
+      background: rgba(0, 242, 254, 0.15);
+      border-color: var(--cyan);
+      color: #fff;
+    }
+
+    /* صف الالتقاط والمعاينة */
+    .shutter-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+    }
+
+    .shutter-btn {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 3px solid var(--cyan);
+      background: rgba(0, 242, 254, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(0, 242, 254, 0.3);
+    }
+
+    .shutter-inner {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+      font-size: 1.3rem;
+    }
+
+    .shutter-btn:active { transform: scale(0.92); }
+
+    .side-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: #141c2b;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+
+    .side-btn.active {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* نافذة معاينة الصورة بعد معالجة التوضيح الفائق */
+    .result-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 500;
+      display: none;
+      flex-direction: column;
+      padding: 16px;
+    }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+    }
+
+    .result-img-wrap {
+      flex: 1;
+      overflow: hidden;
+      border-radius: 16px;
+      border: 1px solid var(--cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #050505;
+    }
+
+    .result-img-wrap img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .act-btn {
+      flex: 1;
+      padding: 12px;
+      border-radius: 12px;
+      border: none;
+      font-weight: 800;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .save-btn { background: var(--cyan); color: #000; }
+    .close-res-btn { background: #1e293b; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <!-- فلتر SVG رياضي لشحذ الحواف وتوضيح البكسلات البعيدة مباشرة (Live Sharpen Convolution) -->
+  <svg class="svg-filters">
+    <defs>
+      <filter id="superSharpen">
+        <feConvolveMatrix order="3 3" preserveAlpha="true" kernelMatrix="0 -1 0 -1 5 -1 0 -1 0"/>
+      </filter>
+      <filter id="extremeSharpen">
+        <feConvolveMatrix order="3 3" preserveAlpha="true" kernelMatrix="-1 -1 -1 -1 9 -1 -1 -1 -1"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- منطقة الكاميرا والرصد -->
+  <div class="viewport" id="viewport">
+    <video id="video" autoplay playsinline muted></video>
+
+    <!-- شبكة التصويب التلسكوبية -->
+    <div class="hud-overlay">
+      <div class="reticle"></div>
+    </div>
+
+    <!-- معلومات الحساس والتقريب -->
+    <div class="top-hud">
+      <div class="hud-badge">
+        <i class="fas fa-microchip"></i>
+        <span id="sensorStatus">AI SUPER-RES ACTIVE</span>
+      </div>
+      <div class="zoom-readout" id="zoomLabel">1.0X</div>
+    </div>
+
+    <!-- أزرار القفز السريع للتقريب -->
+    <div class="quick-zoom-bar">
+      <button class="qz-btn active" onclick="setZoom(1, this)">1x</button>
+      <button class="qz-btn" onclick="setZoom(3, this)">3x</button>
+      <button class="qz-btn" onclick="setZoom(5, this)">5x</button>
+      <button class="qz-btn" onclick="setZoom(10, this)">10x</button>
+      <button class="qz-btn" onclick="setZoom(15, this)">15x</button>
+      <button class="qz-btn" onclick="setZoom(20, this)">20x</button>
+    </div>
+  </div>
+
+  <!-- لوحة التحكم بمعالجة الصورة -->
+  <div class="control-deck">
+    <!-- سلايدر التقريب التدريجي -->
+    <div class="slider-row">
+      <span>التقريب</span>
+      <input type="range" id="zoomSlider" min="1" max="20" step="0.1" value="1" oninput="handleSliderZoom(this.value)">
+    </div>
+
+    <!-- سلايدر قوة التوضيح وشحذ الحواف -->
+    <div class="slider-row">
+      <span>التوضيح</span>
+      <input type="range" id="claritySlider" min="0" max="100" value="40" oninput="updateLiveFilters()">
+    </div>
+
+    <!-- أوضاع الرؤية الذكية -->
+    <div class="modes-grid">
+      <button class="mode-btn active" onclick="setVisionMode('normal', this)">
+        <i class="fas fa-eye"></i>
+        <span>توضيح ذكي</span>
+      </button>
+      <button class="mode-btn" onclick="setVisionMode('text', this)">
+        <i class="fas fa-font"></i>
+        <span>قراءة اللوحات</span>
+      </button>
+      <button class="mode-btn" onclick="setVisionMode('night', this)">
+        <i class="fas fa-moon"></i>
+        <span>رؤية ليلية</span>
+      </button>
+      <button class="mode-btn" onclick="setVisionMode('maxSharp', this)">
+        <i class="fas fa-bolt"></i>
+        <span>حدة قصوى</span>
+      </button>
+    </div>
+
+    <!-- أزرار التصوير والتثبيت -->
+    <div class="shutter-row">
+      <!-- تجميد الإطار لمنع اهتزاز اليد -->
+      <button class="side-btn" id="freezeBtn" onclick="toggleFreeze()" title="تجميد الصورة لفحص التفاصيل بدون اهتزاز اليد">
+        <i class="fas fa-snowflake"></i>
+      </button>
+
+      <!-- زر الالتقاط مع المعالجة الفائقة -->
+      <div class="shutter-btn" onclick="captureSuperRes()">
+        <div class="shutter-inner">
+          <i class="fas fa-crosshairs"></i>
+        </div>
+      </div>
+
+      <!-- تشغيل كشاف الهاتف (إن توفر) أو قلب الكاميرا -->
+      <button class="side-btn" id="torchBtn" onclick="toggleTorch()" title="تشغيل الفلاش/الكشاف">
+        <i class="fas fa-lightbulb"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- نافذة عرض الصورة بعد معالجة التوضيح الرقمي -->
+  <div class="result-modal" id="resultModal">
+    <div class="result-header">
+      <h4 style="color:var(--cyan);"><i class="fas fa-wand-magic-sparkles"></i> تمت معالجة وتوضيح التفاصيل البعيدة</h4>
+    </div>
+    <div class="result-img-wrap">
+      <img id="finalImage" alt="Enhanced Photo">
+    </div>
+    <div class="result-actions">
+      <button class="act-btn save-btn" onclick="downloadEnhanced()">
+        <i class="fas fa-download"></i> حفظ في الأستوديو
+      </button>
+      <button class="act-btn close-res-btn" onclick="document.getElementById('resultModal').style.display='none'">
+        <i class="fas fa-redo"></i> رصد جديد
+      </button>
+    </div>
+  </div>
+
+  <canvas id="procCanvas" style="display:none;"></canvas>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('procCanvas');
+    let stream = null;
+    let videoTrack = null;
+    let currentZoom = 1;
+    let hardwareMaxZoom = 1;
+    let visionMode = 'normal';
+    let isFrozen = false;
+    let torchOn = false;
+
+    // 1. طلب أقصى دقة ممكنة من حساس الكاميرا الخلفية (4K Ideal)
+    async function startUltraCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+            focusMode: { ideal: 'continuous' }
+          },
+          audio: false
+        });
+
+        video.srcObject = stream;
+        videoTrack = stream.getVideoTracks()[0];
+
+        // فحص ما إذا كان الهاتف يدعم تقريب العدسة الحقيقي (Hardware Zoom)
+        const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+        if (capabilities.zoom) {
+          hardwareMaxZoom = capabilities.zoom.max;
+          document.getElementById('sensorStatus').textContent = `OPTICAL+AI (${hardwareMaxZoom}x HW)`;
+        }
+
+        updateLiveFilters();
+      } catch (err) {
+        alert("يرجى منح إذن الكاميرا لتشغيل نظام التقريب الفائق.");
+      }
+    }
+
+    // 2. نظام التقريب الهجين (يجمع بين تقريب العدسة الحقيقي والتقريب الرقمي المحسن)
+    function applyZoom(val) {
+      currentZoom = parseFloat(val);
+      document.getElementById('zoomLabel').textContent = currentZoom.toFixed(1) + 'X';
+      document.getElementById('zoomSlider').value = currentZoom;
+
+      // إذا كان حساس الكاميرا يدعم الزوم المباشر، نستخدمه أولاً للحصول على أعلى دقة
+      if (videoTrack && hardwareMaxZoom > 1) {
+        const hwZoom = Math.min(currentZoom, hardwareMaxZoom);
+        videoTrack.applyConstraints({ advanced: [{ zoom: hwZoom }] }).catch(() => {});
+        const remainingCssZoom = currentZoom / hwZoom;
+        video.style.transform = `scale(${remainingCssZoom})`;
+      } else {
+        video.style.transform = `scale(${currentZoom})`;
+      }
+    }
+
+    function setZoom(val, btn) {
+      document.querySelectorAll('.qz-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      applyZoom(val);
+    }
+
+    function handleSliderZoom(val) {
+      document.querySelectorAll('.qz-btn').forEach(b => b.classList.remove('active'));
+      applyZoom(val);
+    }
+
+    // 3. تحديث فلاتر التوضيح وشحذ الحواف الحية
+    function updateLiveFilters() {
+      const clarity = parseInt(document.getElementById('claritySlider').value);
+      const contrastVal = 1 + (clarity / 150);
+      const saturateVal = 1 + (clarity / 300);
+
+      let filterString = `contrast(${contrastVal}) saturate(${saturateVal})`;
+
+      if (visionMode === 'normal' && clarity > 25) {
+        filterString += ` url(#superSharpen)`;
+      } else if (visionMode === 'text') {
+        // وضع قراءة اللوحات البعيدة: تباين عالٍ جداً مع شحذ حواف
+        filterString = `grayscale(80%) contrast(1.85) brightness(1.05) url(#superSharpen)`;
+      } else if (visionMode === 'night') {
+        // وضع الرؤية الليلية وتفتيح الظلال البعيدة
+        filterString = `brightness(1.5) contrast(1.35) saturate(1.2) url(#superSharpen)`;
+      } else if (visionMode === 'maxSharp') {
+        // أقصى شحذ رياضي للحواف
+        filterString = `contrast(1.3) url(#extremeSharpen)`;
+      }
+
+      video.style.filter = filterString;
+    }
+
+    function setVisionMode(mode, btn) {
+      visionMode = mode;
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      updateLiveFilters();
+    }
+
+    // 4. ميزة تجميد الصورة (Freeze Frame) لفحص الأشياء البعيدة بدون اهتزاز اليد
+    function toggleFreeze() {
+      const btn = document.getElementById('freezeBtn');
+      if (isFrozen) {
+        video.play();
+        isFrozen = false;
+        btn.classList.remove('active');
+      } else {
+        video.pause();
+        isFrozen = true;
+        btn.classList.add('active');
+      }
+    }
+
+    // 5. تشغيل كشاف الهاتف للمساعدة في الإضاءة
+    function toggleTorch() {
+      if (!videoTrack) return;
+      torchOn = !torchOn;
+      videoTrack.applyConstraints({ advanced: [{ torch: torchOn }] }).then(() => {
+        document.getElementById('torchBtn').classList.toggle('active', torchOn);
+      }).catch(() => {
+        alert("الكشاف غير مدعوم أثناء التقريب في هذا المتصفح.");
+      });
+    }
+
+    // 6. التقاط الصورة وتطبيق خوارزمية شحذ البكسلات (Convolution Sharpening Kernel)
+    function captureSuperRes() {
+      const ctx = canvas.getContext('2d');
+      const vw = video.videoWidth || 1920;
+      const vh = video.videoHeight || 1080;
+
+      canvas.width = vw;
+      canvas.height = vh;
+
+      // حساب منطقة القص بناءً على مستوى التقريب الرقمي
+      let effectiveCssZoom = currentZoom;
+      if (hardwareMaxZoom > 1) {
+        effectiveCssZoom = currentZoom / Math.min(currentZoom, hardwareMaxZoom);
+      }
+
+      const cropW = vw / effectiveCssZoom;
+      const cropH = vh / effectiveCssZoom;
+      const cropX = (vw - cropW) / 2;
+      const cropY = (vh - cropH) / 2;
+
+      // رسم الجزء المقرب بأعلى دقة وتنعيم ثلاثي
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      if (visionMode === 'text') {
+        ctx.filter = 'grayscale(80%) contrast(1.75) brightness(1.05)';
+      } else if (visionMode === 'night') {
+        ctx.filter = 'brightness(1.45) contrast(1.3)';
+      } else {
+        const clarity = parseInt(document.getElementById('claritySlider').value);
+        ctx.filter = `contrast(${1 + clarity/140}) saturate(${1 + clarity/250})`;
+      }
+
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, vw, vh);
+      ctx.filter = 'none';
+
+      // تطبيق مصفوفة شحذ الحواف البرمجية (Pixel-Level Sharpening Filter) على الصورة الملتقطة
+      applyCanvasSharpen(ctx, vw, vh, 0.55);
+
+      // عرض النتيجة في نافذة المعاينة
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.96);
+      document.getElementById('finalImage').src = dataUrl;
+      document.getElementById('resultModal').style.display = 'flex';
+    }
+
+    // خوارزمية معالجة البكسلات لزيادة وضوح الحواف بعد التكبير
+    function applyCanvasSharpen(ctx, w, h, mix) {
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const pixels = imgData.data;
+      const copy = new Uint8ClampedArray(pixels);
+      const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const idx = (y * w + x) * 4;
+          for (let c = 0; c < 3; c++) {
+            const val =
+              copy[((y - 1) * w + x) * 4 + c] * kernel[1] +
+              copy[(y * w + (x - 1)) * 4 + c] * kernel[3] +
+              copy[(y * w + x) * 4 + c] * kernel[4] +
+              copy[(y * w + (x + 1)) * 4 + c] * kernel[5] +
+              copy[((y + 1) * w + x) * 4 + c] * kernel[7];
+
+            pixels[idx + c] = Math.min(255, Math.max(0, pixels[idx + c] * (1 - mix) + val * mix));
+          }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    function downloadEnhanced() {
+      const a = document.createElement('a');
+      a.download = `UltraZoom-${currentZoom}x-${Date.now()}.jpg`;
+      a.href = document.getElementById('finalImage').src;
+      a.click();
+    }
+
+    window.addEventListener('load', startUltraCamera);
+  </script>
+</body>
+  </html>
+  
